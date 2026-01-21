@@ -6,7 +6,10 @@ if ! test -e $PWD/run.sh; then
 fi
 
 usage() {
-  echo "Usage: run-docker.sh prod|staging [IMAGE]"
+  echo "Usage: run-docker-local.sh prod|staging [IMAGE]"
+  echo
+  echo "  Image is probably `fizz-bot:latest`, if you built it with"
+  echo "  build-docker.sh."
   exit 1
 }
 
@@ -30,7 +33,7 @@ if [[ "$IMAGE" == "" ]]; then
   usage
 fi
 
-echo "Using config $FIZZ_CONFIG_DIR/fizz.toml"
+echo "Using config ${CONFIG}/fizz.toml"
 docker run -ti --rm \
   -v${CONFIG}:/config \
   -e DISCORD_TOKEN=${DISCORD_TOKEN} \
