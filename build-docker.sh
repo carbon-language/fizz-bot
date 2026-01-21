@@ -1,5 +1,6 @@
 #!/bin/sh
+set -e
 
-cargo build --release || exit 1
-sudo docker build . -t fizz-bot
+cargo build --release
+sudo docker build --pull -t fizz-bot .
 
