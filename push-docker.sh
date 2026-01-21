@@ -5,7 +5,7 @@ usage() {
   echo
   echo "  Example usage: ./push-docker.sh danakj"
   echo
-  echo "  Ensure you are logged into docker hub with that user via `docker login`"
+  echo "  Ensure you are logged into docker hub with that user via 'docker login'"
   exit 1
 }
 

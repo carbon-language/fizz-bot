@@ -8,7 +8,7 @@ fi
 usage() {
   echo "Usage: run-docker-local.sh prod|staging [IMAGE]"
   echo
-  echo "  Image is probably `fizz-bot:latest`, if you built it with"
+  echo "  Image is probably 'fizz-bot:latest', if you built it with"
   echo "  build-docker.sh."
   exit 1
 }
