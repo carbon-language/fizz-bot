@@ -92,9 +92,13 @@ async fn report_alerts(
     ignore_time_for_guild_id: Option<model::DiscordGuildId>,
     filter_to_discord_user: Option<model::DiscordUserId>,
 ) -> Result<(), DiscordError> {
+    struct UserAlertInfo {
+        discord_user_id: model::DiscordUserId,
+        github_names: Vec<model::GithubUserName>,
+    }
     struct GuildAlerts {
         discord_channel_id: model::DiscordChannelId,
-        discord_user_ids: Vec<model::DiscordUserId>,
+        users: Vec<UserAlertInfo>,
         prs: Arc<Vec<github::Pr>>,
         issues: Arc<Vec<github::LeadsIssue>>,
     }
@@ -128,20 +132,26 @@ async fn report_alerts(
             let issues_state =
                 github::get_leads_issues(&guild_config.repo_owner, &guild_config.repo_name).await?;
 
-            let mut discord_user_ids_to_alert: Vec<model::DiscordUserId> = Vec::new();
+            let mut users_to_alert: Vec<UserAlertInfo> = Vec::new();
             let mut discord_user_ids_to_weekly_alert: Vec<model::DiscordUserId> = Vec::new();
-            for (discord_user_id, _) in &guild_config.users {
+            for (discord_user_id, user_config) in &guild_config.users {
                 let user_alerts = model::discord_user_report_times(guild_config, discord_user_id);
 
                 if guild_ignores_time(guild_id) {
-                    discord_user_ids_to_alert.push(discord_user_id.clone());
+                    users_to_alert.push(UserAlertInfo {
+                        discord_user_id: discord_user_id.clone(),
+                        github_names: user_config.github_names.clone(),
+                    });
                     discord_user_ids_to_weekly_alert.push(discord_user_id.clone());
                 } else {
                     // Look for any alert times that we have passed since the last report attempt.
                     let should_report =
                         |report_time| last_report_timestamp < report_time && now >= report_time;
                     if user_alerts.iter().any(should_report) {
-                        discord_user_ids_to_alert.push(discord_user_id.clone());
+                        users_to_alert.push(UserAlertInfo {
+                            discord_user_id: discord_user_id.clone(),
+                            github_names: user_config.github_names.clone(),
+                        });
 
                         if model::discord_user_weekly_report_needed(guild_config, discord_user_id) {
                             discord_user_ids_to_weekly_alert.push(discord_user_id.clone());
@@ -151,7 +161,7 @@ async fn report_alerts(
             }
 
             if let Some(filter_user) = &filter_to_discord_user {
-                discord_user_ids_to_alert.retain_mut(|user| *user == *filter_user);
+                users_to_alert.retain(|u| u.discord_user_id == *filter_user);
                 discord_user_ids_to_weekly_alert.retain_mut(|user| *user == *filter_user);
             }
 
@@ -163,7 +173,7 @@ async fn report_alerts(
 
             alerts.push(GuildAlerts {
                 discord_channel_id: guild_config.report_channel_id.clone(),
-                discord_user_ids: discord_user_ids_to_alert,
+                users: users_to_alert,
                 prs,
                 issues: issues.clone(),
             });
@@ -205,13 +215,14 @@ async fn report_alerts(
     discord::util::save_config(&data).await?;
 
     for alert in alerts {
-        for discord_user_id in alert.discord_user_ids {
+        for user_info in alert.users {
             report_alerts_for_user(
                 http.clone(),
                 alert.prs.clone(),
                 alert.issues.clone(),
                 alert.discord_channel_id.clone(),
-                discord_user_id,
+                user_info.discord_user_id,
+                &user_info.github_names,
             )
             .await?;
         }
@@ -315,12 +326,15 @@ async fn report_alerts_for_user(
     issues: Arc<Vec<github::LeadsIssue>>,
     discord_channel_id: model::DiscordChannelId,
     discord_user_id: model::DiscordUserId,
+    github_names: &[model::GithubUserName],
 ) -> Result<(), DiscordError> {
     const PR_HEADER: &str = ":notepad_spiral: PRs for review ";
     const BLOCKING_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
+    const MY_PRS_HEADER: &str = ":arrow_right: PRs to update ";
 
     let pr_header = format!("{}{}", PR_HEADER, discord_user_id);
     let issue_header = format!("{}{}", BLOCKING_ISSUES_HEADER, discord_user_id);
+    let my_prs_header = format!("{}{}", MY_PRS_HEADER, discord_user_id);
 
     delete_messages_with_prefix(http.clone(), discord_channel_id.clone(), pr_header.clone())
         .await?;
@@ -328,6 +342,12 @@ async fn report_alerts_for_user(
         http.clone(),
         discord_channel_id.clone(),
         issue_header.clone(),
+    )
+    .await?;
+    delete_messages_with_prefix(
+        http.clone(),
+        discord_channel_id.clone(),
+        my_prs_header.clone(),
     )
     .await?;
 
@@ -345,6 +365,21 @@ async fn report_alerts_for_user(
             issue.urgency == github::Urgency::Blocked && issue.leads.contains(&discord_user_id)
         })
         .collect();
+    let my_prs: Vec<_> = prs
+        .iter()
+        .filter(|pr| {
+            let is_author = pr.github_pr.user.as_ref().map_or(false, |u| {
+                let github_name: model::GithubUserName = u.as_ref().into();
+                github_names.contains(&github_name)
+            });
+
+            let no_reviewers = pr.reviewers.is_empty();
+            let no_teams = pr.github_pr.requested_teams.as_ref().map_or(true, |t| t.is_empty());
+            let not_draft = !pr.github_pr.draft.unwrap_or(false);
+
+            is_author && no_reviewers && no_teams && not_draft
+        })
+        .collect();
 
     generate_alert_messages(
         http.clone(),
@@ -355,10 +390,18 @@ async fn report_alerts_for_user(
     )
     .await?;
     generate_alert_messages(
-        http,
+        http.clone(),
         issue_header,
         user_issues,
         format_issue,
+        discord_channel_id.clone(),
+    )
+    .await?;
+    generate_alert_messages(
+        http,
+        my_prs_header,
+        my_prs,
+        format_pr,
         discord_channel_id,
     )
     .await?;
