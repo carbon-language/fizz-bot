@@ -316,26 +316,26 @@ async fn report_alerts_for_user(
     discord_channel_id: model::DiscordChannelId,
     discord_user_id: model::DiscordUserId,
 ) -> Result<(), DiscordError> {
-    const PR_HEADER: &str = ":notepad_spiral: PRs for review ";
-    const BLOCKING_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
-    const MY_PRS_HEADER: &str = ":arrow_right: PRs to update ";
+    const REVIEW_PRS_HEADER: &str = ":notepad_spiral: PRs for review ";
+    const REVIEW_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
+    const AUTHOR_PRS_HEADER: &str = ":arrow_right: PRs to update ";
 
-    let pr_header = format!("{}{}", PR_HEADER, discord_user_id);
-    let issue_header = format!("{}{}", BLOCKING_ISSUES_HEADER, discord_user_id);
-    let my_prs_header = format!("{}{}", MY_PRS_HEADER, discord_user_id);
+    let review_prs_header = format!("{}{}", REVIEW_PRS_HEADER, discord_user_id);
+    let review_issues_header = format!("{}{}", REVIEW_ISSUES_HEADER, discord_user_id);
+    let author_prs_header = format!("{}{}", AUTHOR_PRS_HEADER, discord_user_id);
 
-    delete_messages_with_prefix(http.clone(), discord_channel_id.clone(), pr_header.clone())
+    delete_messages_with_prefix(http.clone(), discord_channel_id.clone(), review_prs_header.clone())
         .await?;
     delete_messages_with_prefix(
         http.clone(),
         discord_channel_id.clone(),
-        issue_header.clone(),
+        review_issues_header.clone(),
     )
     .await?;
     delete_messages_with_prefix(
         http.clone(),
         discord_channel_id.clone(),
-        my_prs_header.clone(),
+        author_prs_header.clone(),
     )
     .await?;
 
@@ -370,7 +370,7 @@ async fn report_alerts_for_user(
 
     generate_alert_messages(
         http.clone(),
-        pr_header,
+        review_prs_header,
         review_prs,
         format_pr,
         discord_channel_id.clone(),
@@ -378,7 +378,7 @@ async fn report_alerts_for_user(
     .await?;
     generate_alert_messages(
         http.clone(),
-        issue_header,
+        review_issues_header,
         review_issues,
         format_issue,
         discord_channel_id.clone(),
@@ -386,7 +386,7 @@ async fn report_alerts_for_user(
     .await?;
     generate_alert_messages(
         http,
-        my_prs_header,
+        author_prs_header,
         author_prs,
         format_pr,
         discord_channel_id,
