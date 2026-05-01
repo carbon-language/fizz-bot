@@ -317,11 +317,11 @@ async fn report_alerts_for_user(
     discord_user_id: model::DiscordUserId,
 ) -> Result<(), DiscordError> {
     const REVIEW_PRS_HEADER: &str = ":notepad_spiral: PRs for review ";
-    const REVIEW_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
+    const LEADS_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
     const AUTHOR_PRS_HEADER: &str = ":arrow_right: PRs to update ";
 
     let review_prs_header = format!("{}{}", REVIEW_PRS_HEADER, discord_user_id);
-    let review_issues_header = format!("{}{}", REVIEW_ISSUES_HEADER, discord_user_id);
+    let leads_issues_header = format!("{}{}", LEADS_ISSUES_HEADER, discord_user_id);
     let author_prs_header = format!("{}{}", AUTHOR_PRS_HEADER, discord_user_id);
 
     delete_messages_with_prefix(http.clone(), discord_channel_id.clone(), review_prs_header.clone())
@@ -329,7 +329,7 @@ async fn report_alerts_for_user(
     delete_messages_with_prefix(
         http.clone(),
         discord_channel_id.clone(),
-        review_issues_header.clone(),
+        leads_issues_header.clone(),
     )
     .await?;
     delete_messages_with_prefix(
@@ -347,7 +347,7 @@ async fn report_alerts_for_user(
                 .any(|r| r.discord_users.contains(&discord_user_id))
         })
         .collect();
-    let review_issues: Vec<_> = issues
+    let leads_issues: Vec<_> = issues
         .iter()
         .filter(|issue: &_| {
             issue.urgency == github::Urgency::Blocked && issue.leads.contains(&discord_user_id)
@@ -378,8 +378,8 @@ async fn report_alerts_for_user(
     .await?;
     generate_alert_messages(
         http.clone(),
-        review_issues_header,
-        review_issues,
+        leads_issues_header,
+        leads_issues,
         format_issue,
         discord_channel_id.clone(),
     )
