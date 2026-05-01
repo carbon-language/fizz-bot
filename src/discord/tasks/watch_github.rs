@@ -92,13 +92,9 @@ async fn report_alerts(
     ignore_time_for_guild_id: Option<model::DiscordGuildId>,
     filter_to_discord_user: Option<model::DiscordUserId>,
 ) -> Result<(), DiscordError> {
-    struct UserAlertInfo {
-        discord_user_id: model::DiscordUserId,
-        github_names: Vec<model::GithubUserName>,
-    }
     struct GuildAlerts {
         discord_channel_id: model::DiscordChannelId,
-        users: Vec<UserAlertInfo>,
+        discord_user_ids: Vec<model::DiscordUserId>,
         prs: Arc<Vec<github::Pr>>,
         issues: Arc<Vec<github::LeadsIssue>>,
     }
@@ -132,26 +128,20 @@ async fn report_alerts(
             let issues_state =
                 github::get_leads_issues(&guild_config.repo_owner, &guild_config.repo_name).await?;
 
-            let mut users_to_alert: Vec<UserAlertInfo> = Vec::new();
+            let mut discord_user_ids_to_alert: Vec<model::DiscordUserId> = Vec::new();
             let mut discord_user_ids_to_weekly_alert: Vec<model::DiscordUserId> = Vec::new();
-            for (discord_user_id, user_config) in &guild_config.users {
+            for (discord_user_id, _) in &guild_config.users {
                 let user_alerts = model::discord_user_report_times(guild_config, discord_user_id);
 
                 if guild_ignores_time(guild_id) {
-                    users_to_alert.push(UserAlertInfo {
-                        discord_user_id: discord_user_id.clone(),
-                        github_names: user_config.github_names.clone(),
-                    });
+                    discord_user_ids_to_alert.push(discord_user_id.clone());
                     discord_user_ids_to_weekly_alert.push(discord_user_id.clone());
                 } else {
                     // Look for any alert times that we have passed since the last report attempt.
                     let should_report =
                         |report_time| last_report_timestamp < report_time && now >= report_time;
                     if user_alerts.iter().any(should_report) {
-                        users_to_alert.push(UserAlertInfo {
-                            discord_user_id: discord_user_id.clone(),
-                            github_names: user_config.github_names.clone(),
-                        });
+                        discord_user_ids_to_alert.push(discord_user_id.clone());
 
                         if model::discord_user_weekly_report_needed(guild_config, discord_user_id) {
                             discord_user_ids_to_weekly_alert.push(discord_user_id.clone());
@@ -161,7 +151,7 @@ async fn report_alerts(
             }
 
             if let Some(filter_user) = &filter_to_discord_user {
-                users_to_alert.retain(|u| u.discord_user_id == *filter_user);
+                discord_user_ids_to_alert.retain_mut(|user| *user == *filter_user);
                 discord_user_ids_to_weekly_alert.retain_mut(|user| *user == *filter_user);
             }
 
@@ -173,7 +163,7 @@ async fn report_alerts(
 
             alerts.push(GuildAlerts {
                 discord_channel_id: guild_config.report_channel_id.clone(),
-                users: users_to_alert,
+                discord_user_ids: discord_user_ids_to_alert,
                 prs,
                 issues: issues.clone(),
             });
@@ -215,14 +205,13 @@ async fn report_alerts(
     discord::util::save_config(&data).await?;
 
     for alert in alerts {
-        for user_info in alert.users {
+        for discord_user_id in alert.discord_user_ids {
             report_alerts_for_user(
                 http.clone(),
                 alert.prs.clone(),
                 alert.issues.clone(),
                 alert.discord_channel_id.clone(),
-                user_info.discord_user_id,
-                &user_info.github_names,
+                discord_user_id,
             )
             .await?;
         }
@@ -326,7 +315,6 @@ async fn report_alerts_for_user(
     issues: Arc<Vec<github::LeadsIssue>>,
     discord_channel_id: model::DiscordChannelId,
     discord_user_id: model::DiscordUserId,
-    github_names: &[model::GithubUserName],
 ) -> Result<(), DiscordError> {
     const PR_HEADER: &str = ":notepad_spiral: PRs for review ";
     const BLOCKING_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
@@ -351,7 +339,7 @@ async fn report_alerts_for_user(
     )
     .await?;
 
-    let user_prs: Vec<_> = prs
+    let review_prs: Vec<_> = prs
         .iter()
         .filter(|pr| {
             pr.reviewers
@@ -359,18 +347,17 @@ async fn report_alerts_for_user(
                 .any(|r| r.discord_users.contains(&discord_user_id))
         })
         .collect();
-    let user_issues: Vec<_> = issues
+    let review_issues: Vec<_> = issues
         .iter()
         .filter(|issue: &_| {
             issue.urgency == github::Urgency::Blocked && issue.leads.contains(&discord_user_id)
         })
         .collect();
-    let my_prs: Vec<_> = prs
+    let author_prs: Vec<_> = prs
         .iter()
         .filter(|pr| {
-            let is_author = pr.github_pr.user.as_ref().map_or(false, |u| {
-                let github_name: model::GithubUserName = u.as_ref().into();
-                github_names.contains(&github_name)
+            let is_author = pr.author.as_ref().map_or(false, |a| {
+                a.discord_users.contains(&discord_user_id)
             });
 
             let no_reviewers = pr.reviewers.is_empty();
@@ -384,7 +371,7 @@ async fn report_alerts_for_user(
     generate_alert_messages(
         http.clone(),
         pr_header,
-        user_prs,
+        review_prs,
         format_pr,
         discord_channel_id.clone(),
     )
@@ -392,7 +379,7 @@ async fn report_alerts_for_user(
     generate_alert_messages(
         http.clone(),
         issue_header,
-        user_issues,
+        review_issues,
         format_issue,
         discord_channel_id.clone(),
     )
@@ -400,7 +387,7 @@ async fn report_alerts_for_user(
     generate_alert_messages(
         http,
         my_prs_header,
-        my_prs,
+        author_prs,
         format_pr,
         discord_channel_id,
     )
