@@ -20,6 +20,12 @@ fn github_pr_url(cfg: &model::GuildConfig, number: u64) -> String {
 }
 
 #[allow(dead_code)]
+pub struct Author {
+    pub github_user: model::GithubUserName,
+    pub discord_users: Vec<model::DiscordUserId>,
+}
+
+#[allow(dead_code)]
 pub struct Reviewer {
     pub github_user: model::GithubUserName,
     pub discord_users: Vec<model::DiscordUserId>,
@@ -28,6 +34,7 @@ pub struct Reviewer {
 pub struct Pr {
     pub github_pr: PullRequest,
     pub url: String,
+    pub author: Option<Author>,
     pub reviewers: Vec<Reviewer>,
 }
 
@@ -78,9 +85,24 @@ pub fn filter_prs_for_guild<'a>(
             }
         }
 
+        let author = pr.user.as_ref().map(|u| {
+            let github_user: model::GithubUserName = u.as_ref().into();
+            let mut discord_users = Vec::new();
+            for (discord_user_id, user_config) in &cfg.users {
+                if user_config.github_names.contains(&github_user) {
+                    discord_users.push(discord_user_id.clone());
+                }
+            }
+            Author {
+                github_user,
+                discord_users,
+            }
+        });
+
         Pr {
             url: github_pr_url(cfg, pr.number),
             github_pr: pr,
+            author,
             reviewers,
         }
     })

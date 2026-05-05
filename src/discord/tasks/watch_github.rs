@@ -316,22 +316,30 @@ async fn report_alerts_for_user(
     discord_channel_id: model::DiscordChannelId,
     discord_user_id: model::DiscordUserId,
 ) -> Result<(), DiscordError> {
-    const PR_HEADER: &str = ":notepad_spiral: PRs for review ";
-    const BLOCKING_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
+    const REVIEW_PRS_HEADER: &str = ":notepad_spiral: PRs for review ";
+    const LEADS_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
+    const AUTHOR_PRS_HEADER: &str = ":arrow_right: PRs to update ";
 
-    let pr_header = format!("{}{}", PR_HEADER, discord_user_id);
-    let issue_header = format!("{}{}", BLOCKING_ISSUES_HEADER, discord_user_id);
+    let review_prs_header = format!("{}{}", REVIEW_PRS_HEADER, discord_user_id);
+    let leads_issues_header = format!("{}{}", LEADS_ISSUES_HEADER, discord_user_id);
+    let author_prs_header = format!("{}{}", AUTHOR_PRS_HEADER, discord_user_id);
 
-    delete_messages_with_prefix(http.clone(), discord_channel_id.clone(), pr_header.clone())
+    delete_messages_with_prefix(http.clone(), discord_channel_id.clone(), review_prs_header.clone())
         .await?;
     delete_messages_with_prefix(
         http.clone(),
         discord_channel_id.clone(),
-        issue_header.clone(),
+        leads_issues_header.clone(),
+    )
+    .await?;
+    delete_messages_with_prefix(
+        http.clone(),
+        discord_channel_id.clone(),
+        author_prs_header.clone(),
     )
     .await?;
 
-    let user_prs: Vec<_> = prs
+    let review_prs: Vec<_> = prs
         .iter()
         .filter(|pr| {
             pr.reviewers
@@ -339,26 +347,48 @@ async fn report_alerts_for_user(
                 .any(|r| r.discord_users.contains(&discord_user_id))
         })
         .collect();
-    let user_issues: Vec<_> = issues
+    let leads_issues: Vec<_> = issues
         .iter()
         .filter(|issue: &_| {
             issue.urgency == github::Urgency::Blocked && issue.leads.contains(&discord_user_id)
         })
         .collect();
+    let author_prs: Vec<_> = prs
+        .iter()
+        .filter(|pr| {
+            let is_author = pr.author.as_ref().map_or(false, |a| {
+                a.discord_users.contains(&discord_user_id)
+            });
+
+            let no_reviewers = pr.reviewers.is_empty();
+            let no_teams = pr.github_pr.requested_teams.as_ref().map_or(true, |t| t.is_empty());
+            let not_draft = !pr.github_pr.draft.unwrap_or(false);
+
+            is_author && no_reviewers && no_teams && not_draft
+        })
+        .collect();
 
     generate_alert_messages(
         http.clone(),
-        pr_header,
-        user_prs,
+        review_prs_header,
+        review_prs,
         format_pr,
         discord_channel_id.clone(),
     )
     .await?;
     generate_alert_messages(
-        http,
-        issue_header,
-        user_issues,
+        http.clone(),
+        leads_issues_header,
+        leads_issues,
         format_issue,
+        discord_channel_id.clone(),
+    )
+    .await?;
+    generate_alert_messages(
+        http,
+        author_prs_header,
+        author_prs,
+        format_pr,
         discord_channel_id,
     )
     .await?;
