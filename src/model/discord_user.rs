@@ -49,6 +49,18 @@ pub fn discord_user_report_times(
     out
 }
 
+
+pub fn discord_user_wants_ping_prs_to_update(
+    guild_config: &model::GuildConfig,
+    discord_user_id: &model::DiscordUserId,
+) -> bool {
+    let Some(user_config) = guild_config.users.get(discord_user_id) else {
+        return false;
+    };
+
+    user_config.ping_prs_to_update
+}
+
 pub fn discord_user_weekly_report_needed(
     guild_config: &model::GuildConfig,
     discord_user_id: &model::DiscordUserId,

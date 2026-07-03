@@ -92,9 +92,13 @@ async fn report_alerts(
     ignore_time_for_guild_id: Option<model::DiscordGuildId>,
     filter_to_discord_user: Option<model::DiscordUserId>,
 ) -> Result<(), DiscordError> {
+    struct GuildAlertUser {
+        discord_user_id: model::DiscordUserId,
+        ping_prs_to_update: bool,
+    }
     struct GuildAlerts {
         discord_channel_id: model::DiscordChannelId,
-        discord_user_ids: Vec<model::DiscordUserId>,
+        users: Vec<GuildAlertUser>,
         prs: Arc<Vec<github::Pr>>,
         issues: Arc<Vec<github::LeadsIssue>>,
     }
@@ -161,9 +165,19 @@ async fn report_alerts(
                 github::filter_leads_issues_for_guild(issues_state, guild_config).collect(),
             );
 
+            let users = discord_user_ids_to_alert
+                .into_iter()
+                .map(|discord_user_id| GuildAlertUser {
+                    ping_prs_to_update: model::discord_user_wants_ping_prs_to_update(
+                        guild_config,
+                        &discord_user_id,
+                    ),
+                    discord_user_id,
+                })
+                .collect();
             alerts.push(GuildAlerts {
                 discord_channel_id: guild_config.report_channel_id.clone(),
-                discord_user_ids: discord_user_ids_to_alert,
+                users,
                 prs,
                 issues: issues.clone(),
             });
@@ -205,13 +219,14 @@ async fn report_alerts(
     discord::util::save_config(&data).await?;
 
     for alert in alerts {
-        for discord_user_id in alert.discord_user_ids {
+        for user in alert.users {
             report_alerts_for_user(
                 http.clone(),
                 alert.prs.clone(),
                 alert.issues.clone(),
                 alert.discord_channel_id.clone(),
-                discord_user_id,
+                user.discord_user_id,
+                user.ping_prs_to_update,
             )
             .await?;
         }
@@ -315,6 +330,7 @@ async fn report_alerts_for_user(
     issues: Arc<Vec<github::LeadsIssue>>,
     discord_channel_id: model::DiscordChannelId,
     discord_user_id: model::DiscordUserId,
+    ping_prs_to_update: bool,
 ) -> Result<(), DiscordError> {
     const REVIEW_PRS_HEADER: &str = ":notepad_spiral: PRs for review ";
     const LEADS_ISSUES_HEADER: &str = ":fire_engine: Open leads issues (blocking) ";
@@ -324,8 +340,12 @@ async fn report_alerts_for_user(
     let leads_issues_header = format!("{}{}", LEADS_ISSUES_HEADER, discord_user_id);
     let author_prs_header = format!("{}{}", AUTHOR_PRS_HEADER, discord_user_id);
 
-    delete_messages_with_prefix(http.clone(), discord_channel_id.clone(), review_prs_header.clone())
-        .await?;
+    delete_messages_with_prefix(
+        http.clone(),
+        discord_channel_id.clone(),
+        review_prs_header.clone(),
+    )
+    .await?;
     delete_messages_with_prefix(
         http.clone(),
         discord_channel_id.clone(),
@@ -356,15 +376,20 @@ async fn report_alerts_for_user(
     let author_prs: Vec<_> = prs
         .iter()
         .filter(|pr| {
-            let is_author = pr.author.as_ref().map_or(false, |a| {
-                a.discord_users.contains(&discord_user_id)
-            });
+            let is_author = pr
+                .author
+                .as_ref()
+                .map_or(false, |a| a.discord_users.contains(&discord_user_id));
 
             let no_reviewers = pr.reviewers.is_empty();
-            let no_teams = pr.github_pr.requested_teams.as_ref().map_or(true, |t| t.is_empty());
+            let no_teams = pr
+                .github_pr
+                .requested_teams
+                .as_ref()
+                .map_or(true, |t| t.is_empty());
             let not_draft = !pr.github_pr.draft.unwrap_or(false);
 
-            is_author && no_reviewers && no_teams && not_draft
+            ping_prs_to_update && is_author && no_reviewers && no_teams && not_draft
         })
         .collect();
 

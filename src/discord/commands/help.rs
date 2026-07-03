@@ -15,6 +15,7 @@ pub async fn help(ctx: DiscordContext<'_>) -> Result<(), DiscordError> {
 * If you have different workdays than Monday to Friday, you can tell me with `/fizz my_workdays_are <days>`. \n\
 * To adjust at what times you will receive PR review report, you can use `/fizz my_report_times_are <times>`. \n\
 * If you are a project lead and want to get pings for open leads issues, you can use `/fizz my_role_is_lead True`. \n\
+* If want to stop hearing about your own PRs waiting for update, you can use `/fizz my_update_pings_are False`. \n\
 * If you will be away and want to pause notifications, you can tell me with `/fizz away <number of days>`. \n\
 * If you come back early from `/fizz away` and want to resume notifications, you can tell me with `/fizz back`. \n\
 * If you ever want to see what your current settings are, use `/fizz whoami`. \n\

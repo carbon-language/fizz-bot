@@ -9,6 +9,7 @@ mod my_github_is;
 mod my_report_times_are;
 mod my_role_is_lead;
 mod my_timezone_is;
+mod my_update_pings_are;
 mod my_workdays_are;
 mod ping;
 mod remove_me;
@@ -32,6 +33,7 @@ use crate::discord::{DiscordContext, DiscordData, DiscordError};
         "my_report_times_are::my_report_times_are",
         "my_role_is_lead::my_role_is_lead",
         "my_github_is::my_github_is",
+        "my_update_pings_are::my_update_pings_are",
         "my_workdays_are::my_workdays_are",
         "my_timezone_is::my_timezone_is",
         "ping::ping",

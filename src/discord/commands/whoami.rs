@@ -19,6 +19,7 @@ pub async fn whoami(ctx: DiscordContext<'_>) -> Result<(), DiscordError> {
     let mut my_report_times: Vec<NaiveTime> = Vec::new();
     let mut my_away_until: Option<NaiveDate> = None;
     let mut my_lead: bool = false;
+    let mut my_ping_prs_to_update: bool = false;
 
     {
         let cfg_guard = ctx.data().cfg.lock().await;
@@ -30,6 +31,7 @@ pub async fn whoami(ctx: DiscordContext<'_>) -> Result<(), DiscordError> {
                 my_report_times = user_config.report_times.clone();
                 my_away_until = user_config.away_until.clone();
                 my_lead = user_config.lead;
+                my_ping_prs_to_update = user_config.ping_prs_to_update;
             }
         }
     }
@@ -48,6 +50,12 @@ pub async fn whoami(ctx: DiscordContext<'_>) -> Result<(), DiscordError> {
         reply.push_str("* You are a lead and will get pinged for leads issues\n");
     } else {
         reply.push_str("* You are not a lead and won't get pinged for leads issues\n");
+    }
+
+    if my_ping_prs_to_update {
+        reply.push_str("* You will get pinged about your own PRs waiting for an update\n");
+    } else {
+        reply.push_str("* You won't get pinged about your own PRs waiting for an update\n");
     }
 
     reply.push_str(&format!("* Your timezone is {}\n", my_timezone));

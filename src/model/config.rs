@@ -22,6 +22,10 @@ pub struct UserConfig {
     /// Whether the user wants pings for leads issues.
     #[serde(default)]
     pub lead: bool,
+    /// Whether the user wants pings for PRs that they authored and which have
+    /// been reviewed, so they are waiting for the user to update.
+    #[serde(default = "default_ping_prs_to_update")]
+    pub ping_prs_to_update: bool,
     /// The timezone for the user, where they are currently working from. Dates
     /// and times specified by the user are all relative to this.
     #[serde(default)]
@@ -61,12 +65,17 @@ fn default_report_times() -> Vec<NaiveTime> {
     ]
 }
 
+fn default_ping_prs_to_update() -> bool {
+    return true;
+}
+
 impl UserConfig {
     pub fn new(friendly_name: String) -> Self {
         Self {
             friendly_name,
             github_names: Default::default(),
             lead: Default::default(),
+            ping_prs_to_update: default_ping_prs_to_update(),
             timezone: Default::default(),
             workdays: default_workdays(),
             report_times: default_report_times(),
