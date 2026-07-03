@@ -22,6 +22,7 @@ if [[ "$TAG" == "" ]]; then
   TAG=latest
 fi
 
-sudo docker tag fizz-bot:latest $USER/fizz-bot:$TAG
+set -x
+sudo docker tag fizz-bot:latest $USER/fizz-bot:$TAG || exit 1
 sudo docker push $USER/fizz-bot:$TAG
 
