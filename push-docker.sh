@@ -4,7 +4,7 @@ set -e
 usage() {
   echo "Usage: push-docker.sh [DOCKERHUBUSER]"
   echo ""
-  echo "  Example usage: ./push-docker.sh danakj [TAG]"
+  echo "  Example usage: ./push-docker.sh carboninfrabot [TAG]"
   echo ""
   echo "  TAG    The tag to use when pushing. Default: 'latest'."
   echo ""
