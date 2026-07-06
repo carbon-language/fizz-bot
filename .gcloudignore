@@ -1,0 +1,7 @@
+.git/
+.jj/
+/target
+SECRETS
+prod/
+staging/
+
