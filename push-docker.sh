@@ -25,4 +25,3 @@ fi
 set -x
 sudo docker tag fizz-bot:latest $USER/fizz-bot:$TAG
 sudo docker push $USER/fizz-bot:$TAG
-

@@ -38,4 +38,3 @@ docker run -ti --rm \
   -v${CONFIG}:/config \
   -e DISCORD_TOKEN=${DISCORD_TOKEN} \
   ${IMAGE}
-
