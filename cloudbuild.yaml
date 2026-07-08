@@ -1,0 +1,19 @@
+# Part of the Carbon Language project, under the Apache License v2.0 with LLVM
+# Exceptions. See /LICENSE for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+steps:
+  # Step 1: Build the release binary hermetically.
+  - name: 'rust:1.96'
+    entrypoint: 'cargo'
+    args: ['build', '--release']
+
+  # Step 2: Build the Docker image.
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '--pull', '-t', 'gcr.io/carbon-language/fizz-bot:$_TAG', '.']
+
+images:
+  - 'gcr.io/carbon-language/fizz-bot:$_TAG'
+
+substitutions:
+  _TAG: 'latest'

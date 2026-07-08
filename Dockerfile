@@ -9,4 +9,3 @@ ENV FIZZ_CONFIG_DIR=/config
 # ENV DISCORD_TOKEN="provide this when running the docker image"
 
 ENTRYPOINT ["fizz"]
-

@@ -1,0 +1,27 @@
+# Part of the Carbon Language project, under the Apache License v2.0 with LLVM
+# Exceptions. See /LICENSE for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "$$DOCKER_PASSWORD" | docker login --username "carboninfrabot" --password-stdin
+        docker pull gcr.io/carbon-language/fizz-bot:$_SRC_TAG
+        docker tag gcr.io/carbon-language/fizz-bot:$_SRC_TAG carboninfrabot/fizz-bot:$_DST_TAG
+        docker push carboninfrabot/fizz-bot:$_DST_TAG
+    secretEnv: ['DOCKER_PASSWORD']
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/carbon-language/secrets/docker-hub-password/versions/latest
+      env: 'DOCKER_PASSWORD'
+
+substitutions:
+  _SRC_TAG: 'latest'
+  _DST_TAG: 'latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
